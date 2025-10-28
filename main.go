@@ -1,7 +1,15 @@
 package main
 
-import "fmt"
+import (
+	"log"
+	"os"
+
+	application "github.com/KhaledLemes/potmap/app"
+)
 
 func main() {
-	fmt.
+	application := application.Generate()
+	if err := application.Run(os.Args); err != nil {
+		log.Fatal(err)
+	}
 }
