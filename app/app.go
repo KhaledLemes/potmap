@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -51,9 +52,16 @@ func Generate() *cli.App {
 			&cli.Command{
 				Name:    "Scan",
 				Aliases: []string{"scan", "S", "s"},
-				Usage:   "Does a TCP port scan of the main TCP ports. Also accepts port numbers as argument with flag --ports",
+				Usage:   "Does a TCP port scan of the main TCP ports. Accepts port numbers as argument with flag --ports",
 				Flags:   flags,
 				Action:  Scan,
+			},
+			&cli.Command{
+				Name:    "uScan",
+				Aliases: []string{"uscan", "usc", "us"},
+				Usage:   "Does a UDP port scan of the main ports. Also accepts port numbers as argument with flag --ports",
+				Flags:   flags,
+				Action:  uScan,
 			},
 		},
 	}
@@ -106,6 +114,56 @@ func Scan(c *cli.Context) error {
 func uScan(c *cli.Context) error {
 	result.populate(c)
 
+	for _, port := range result.ports {
+		result.addr = fmt.Sprintf("%s:%s", result.ip, port)
+
+		conn, err := net.DialTimeout("udp", result.addr, time.Second*3)
+		if err != nil {
+			return fmt.Errorf("Unable to stablish connection with %s\n", result.addr)
+		}
+
+		conn.SetReadDeadline(time.Now().Add(time.Second * 3))
+
+		conn.Write([]byte("FUECOCO"))
+		buf := make([]byte, 1024)
+
+		_, err = conn.Read(buf)
+		if err != nil {
+			var nerr net.Error
+
+			// If the error is a timeout we cannot assume it is opened nor closed for UDP conns
+			if errors.As(err, &nerr) && nerr.Timeout() {
+				fmt.Printf("Port %s is OPEN | FILTERED\n", port)
+				result.filtered++
+				continue
+			}
+
+			// If the connection got refused, it has received the message, meaning it is opened and listening
+			if strings.Contains(err.Error(), "connection refused") {
+				fmt.Printf("Port %s is OPEN\n", port)
+				result.open++
+				continue
+			}
+
+			// Catches other generic errors assuming it is closed
+			fmt.Printf("Port %s is CLOSED\n", port)
+			result.closed++
+			continue
+		}
+		// If it gets to this point, it means a connection was stablished, so it is opened.
+		fmt.Printf("Port %s is OPEN\n", port)
+		result.open++
+
+		conn.Close()
+	}
+
+	if result.open == 0 && result.filtered == 0 {
+		fmt.Println("------------------------------------------------")
+		fmt.Printf("All scanned ports for %s are closed :(\n", result.ip)
+		return nil
+	}
+	fmt.Println("------------------------------------------------")
+	fmt.Printf("Port scan for ip %s completed.\nScanned ports: %d\nOpen ports: %d\nFiltered ports: %d\nClosed ports: %d\n", result.ip, result.scanned, result.open, result.filtered, result.closed)
 	return nil
 }
 
