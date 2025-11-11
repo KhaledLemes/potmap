@@ -31,14 +31,14 @@ func Generate() *cli.App {
 		Commands: []*cli.Command{
 			&cli.Command{
 				Name:    "Scan",
-				Aliases: []string{"scan", "S", "s"},
+				Aliases: []string{"scan", "sc", "S", "s", "tcp"},
 				Usage:   "Does a TCP port scan of the main TCP ports. Accepts port numbers as argument with flag --ports",
 				Flags:   flags,
 				Action:  scan.TCPScan,
 			},
 			&cli.Command{
 				Name:    "uScan",
-				Aliases: []string{"uscan", "usc", "us"},
+				Aliases: []string{"uscan", "usc", "uS", "us", "u", "udp"},
 				Usage:   "Does a UDP port scan of the main ports. Also accepts port numbers as argument with flag --ports",
 				Flags:   flags,
 				Action:  scan.UDPScan,
