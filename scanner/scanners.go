@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strconv"
 	"strings"
 	"time"
 
@@ -31,23 +30,13 @@ func (result *ScanResult) populate(connType string, c *cli.Context) error {
 	// Populates and validade "ip" field
 	result.ip = c.String("ip")
 	if err := ValidateIP(result.ip); err != nil {
-		
+		return err
 	}
 
 	// Populates and validade "ports" field
 	result.ports = c.StringSlice("ports")
-	if len(result.ports) == 0 {
-		switch connType {
-		case "udp":
-			result.ports = []string{"53", "67", "68", "69", "123", "161", "162", "500", "514", "3478", "4500"}
-		case "tcp":
-			result.ports = []string{"20", "21", "22", "23", "25", "80", "110", "139", "143", "443", "445", "3306", "3389", "5432", "8080"}
-		}
-	}
-	for _, port := range result.ports {
-		if _, err := strconv.ParseUint(port, 10, 16); err != nil {
-			return fmt.Errorf("\n%s is not a valid port.", port)
-		}
+	if err := ValidatePorts(connType, result); err != nil {
+		return err
 	}
 
 	// Populates "scanned" field
@@ -74,6 +63,7 @@ func TCPScan(c *cli.Context) error {
 		return err
 	}
 
+	fmt.Printf("%s\n------------------------\n", result.ip)
 	for _, port := range result.ports {
 		result.addr = fmt.Sprintf("%s:%s", result.ip, port)
 
@@ -112,6 +102,8 @@ func UDPScan(c *cli.Context) error {
 	if err := result.populate("udp", c); err != nil {
 		return err
 	}
+
+	fmt.Printf("%s\n------------------------\n", result.ip)
 
 	for _, port := range result.ports {
 		result.addr = fmt.Sprintf("%s:%s", result.ip, port)

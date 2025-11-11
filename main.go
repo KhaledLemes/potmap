@@ -13,7 +13,7 @@ func main() {
 	currentTime := time.Now()
 	formattedTime := currentTime.Format("2006-01-02 15:04:05")
 
-	fmt.Printf("Starting potscan at %v\n\n------------------------\n", formattedTime)
+	fmt.Printf("Starting potscan at %v\n\n", formattedTime)
 
 	application := application.Generate()
 	if err := application.Run(os.Args); err != nil {
