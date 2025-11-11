@@ -22,7 +22,7 @@ type scanResult struct {
 	filtered uint
 }
 
-var result = scanResult{}
+var result scanResult
 
 func Generate() *cli.App {
 	flags := []cli.Flag{
@@ -36,7 +36,6 @@ func Generate() *cli.App {
 		&cli.StringSliceFlag{
 			Name:    "ports",
 			Aliases: []string{"p"},
-			Value:   cli.NewStringSlice("20", "21", "22", "25", "53", "80", "110", "143", "443", "3389", "8080"),
 		},
 		&cli.BoolFlag{
 			Name:    "ShowClosed",
@@ -73,6 +72,10 @@ func Scan(c *cli.Context) error {
 	if err := result.populate(c); err != nil {
 		return err
 	}
+	// If no port is declared, it will scan the most common TCP ports
+	if len(result.ports) == 0 {
+		result.ports = append(result.ports, "20", "21", "22", "23", "25", "80", "110", "139", "143", "443", "445", "3306", "3389", "5432", "8080")
+	}
 
 	for _, port := range result.ports {
 		result.addr = fmt.Sprintf("%s:%s", result.ip, port)
@@ -80,7 +83,7 @@ func Scan(c *cli.Context) error {
 		conn, err := net.DialTimeout("tcp", result.addr, time.Second*3)
 		// Will check whether a connection is closed or filtered
 		if err != nil {
-			// If the error is a timeout, the port is filtered
+			// If the error is a timeout the port is filtered
 			var nerr net.Error
 			if errors.As(err, &nerr) && nerr.Timeout() {
 				fmt.Printf("Port %s is open | filtered\n", port)
@@ -112,15 +115,24 @@ func Scan(c *cli.Context) error {
 }
 
 func uScan(c *cli.Context) error {
-	result.populate(c)
+	if err := result.populate(c); err != nil {
+		return err
+	}
+	// If no port is declared, it will scan the most common UDP ports
+
+	if len(result.ports) == 0 {
+		result.ports = append(result.ports, "53", "67", "68", "69", "123", "161", "162", "500", "514", "3478", "4500", "8080")
+	}
 
 	for _, port := range result.ports {
 		result.addr = fmt.Sprintf("%s:%s", result.ip, port)
 
 		conn, err := net.DialTimeout("udp", result.addr, time.Second*3)
 		if err != nil {
-			return fmt.Errorf("Unable to stablish connection with %s\n", result.addr)
+			fmt.Printf("Unable to stablish connection with %s\n", result.addr)
+			continue
 		}
+		defer conn.Close()
 
 		conn.SetReadDeadline(time.Now().Add(time.Second * 3))
 
@@ -138,23 +150,25 @@ func uScan(c *cli.Context) error {
 				continue
 			}
 
-			// If the connection got refused, it has received the message, meaning it is opened and listening
+			// If the connection got refused port is closed
 			if strings.Contains(err.Error(), "connection refused") {
-				fmt.Printf("Port %s is OPEN\n", port)
-				result.open++
+				if c.Bool("ShowClosed") {
+					fmt.Printf("Port %s is CLOSED\n", port)
+				}
+				result.closed++
 				continue
 			}
 
 			// Catches other generic errors assuming it is closed
-			fmt.Printf("Port %s is CLOSED\n", port)
+			if c.Bool("ShowClosed") {
+				fmt.Printf("Port %s is CLOSED\n", port)
+			}
 			result.closed++
 			continue
 		}
-		// If it gets to this point, it means a connection was stablished, so it is opened.
+		// If it gets to this point, it means a response was read, so it is open.
 		fmt.Printf("Port %s is OPEN\n", port)
 		result.open++
-
-		conn.Close()
 	}
 
 	if result.open == 0 && result.filtered == 0 {
